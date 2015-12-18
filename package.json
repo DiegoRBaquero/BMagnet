@@ -1,0 +1,32 @@
+{
+  "name": "bmagnet",
+  "description": "An extension to the magnet URI scheme for WebTorrent",
+  "version": "0.0.0",
+  "author": "Diego Rodríguez Baquero",
+  "bugs": {
+    "url": "https://github.com/DiegoRBaquero/BMagnet/issues"
+  },
+  "devDependencies": {
+    "standard": "^5.4.1"
+  },
+  "homepage": "https://github.com/DiegoRBaquero/BMagnet#readme",
+  "keywords": [
+    "bmagnet",
+    "magnet",
+    "uri",
+    "scheme",
+    "magneturi"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DiegoRBaquero/BMagnet.git"
+  },
+  "scripts": {
+    "test": "standard"
+  },
+  "dependencies": {
+    "request": "^2.67.0"
+  }
+}

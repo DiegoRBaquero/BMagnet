@@ -10,12 +10,11 @@ function BMagnet (magnet_uri) {
 BMagnet.prototype.get = function (cb) {
   var self = this
   if (!this.retrieved) {
-    request('https://bmagnet.btorrent.xyz/', {timeout: 200}, function (error, response, body) {
+    request('https://bmagnet.btorrent.xyz/', {timeout: 500}, function (error, response, body) {
       if(error) {
-        console.error(error)
+        console.debug(error)
         cb(self.value)
         return
-        //console.error(error)
       }
       self.value = JSON.parse(body)
       console.debug('Returning value')

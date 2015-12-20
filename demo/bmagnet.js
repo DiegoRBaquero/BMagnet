@@ -31,12 +31,11 @@ function BMagnet (magnet_uri) {
 BMagnet.prototype.get = function (cb) {
   var self = this
   if (!this.retrieved) {
-    request('https://bmagnet.btorrent.xyz/', {timeout: 200}, function (error, response, body) {
+    request('https://bmagnet.btorrent.xyz/', {timeout: 1000}, function (error, response, body) {
       if(error) {
-        console.error(error)
+        console.debug(error)
         cb(self.value)
         return
-        //console.error(error)
       }
       self.value = JSON.parse(body)
       console.debug('Returning value')
@@ -47,7 +46,6 @@ BMagnet.prototype.get = function (cb) {
     cb(this.value)
   }
 }
-
 },{"request":3}],3:[function(require,module,exports){
 // Copyright 2010-2012 Mikeal Rogers
 //
@@ -32891,6 +32889,8 @@ Torrent.prototype._request = function (wire, index, hotswap) {
   var self = this
   var numRequests = wire.requests.length
 
+  var webPeer = wire.remotePort === 80 || wire.remotePort === 443
+  
   if (self.bitfield.get(index)) return false
 
   var maxOutstandingRequests = getPipelineLength(wire, PIPELINE_MAX_DURATION)
@@ -32898,10 +32898,10 @@ Torrent.prototype._request = function (wire, index, hotswap) {
   // var endGame = (wire.requests.length === 0 && self.store.numMissing < 30)
 
   var piece = self.pieces[index]
-  var reservation = piece.reserve()
+  var reservation = webPeer ? piece.reserveAll() : piece.reserve()
 
   if (reservation === -1 && hotswap && self._hotswap(wire, index)) {
-    reservation = piece.reserve()
+    reservation = webPeer ? piece.reserveAll() : piece.reserve()
   }
   if (reservation === -1) return false
 
@@ -32912,7 +32912,7 @@ Torrent.prototype._request = function (wire, index, hotswap) {
   r[i] = wire
 
   var chunkOffset = piece.chunkOffset(reservation)
-  var chunkLength = piece.chunkLength(reservation)
+  var chunkLength = webPeer ? piece.chunkLengthRest(reservation) : piece.chunkLength(reservation)
 
   wire.request(index, chunkOffset, chunkLength, function onChunk (err, chunk) {
     // TODO: what is this for?
@@ -32928,7 +32928,7 @@ Torrent.prototype._request = function (wire, index, hotswap) {
         index, chunkOffset, chunkLength, wire.remoteAddress + ':' + wire.remotePort,
         err.message
       )
-      piece.cancel(reservation)
+      webPeer ? piece.cancelAll(reservation) : piece.cancel(reservation)
       onUpdateTick()
       return
     }
@@ -32938,7 +32938,13 @@ Torrent.prototype._request = function (wire, index, hotswap) {
       index, chunkOffset, chunkLength, wire.remoteAddress + ':' + wire.remotePort
     )
 
-    if (!piece.set(reservation, chunk, wire)) return onUpdateTick()
+    if (!piece.set(reservation, chunk, wire)) {
+      if (webPeer) {
+        console.debug('WHAT THE FUCK index ' + index + ' chunkOffset ' + chunkOffset + ' chunkLength ' + chunkLength + ' reservation ' + reservation + ' chunk length received ' + chunk.length + ' ' + piece.missing)
+        console.debug(piece)
+      }
+      return onUpdateTick()
+    }
 
     var buf = piece.flush()
 
@@ -33605,6 +33611,7 @@ exports.createOutgoingTCPPeer = function (addr, swarm) {
 exports.createWebPeer = function (url, parsedTorrent, swarm) {
   var peer = new Peer(url)
   peer.swarm = swarm
+  peer.addr = url.split('//')[1].split('/')[0] + ':80'
   peer.conn = new WebConn(url, parsedTorrent)
 
   peer.onConnect()
@@ -40394,6 +40401,10 @@ Piece.prototype.chunkLength = function (i) {
   return i === this._chunks - 1 ? this._remainder : BLOCK_LENGTH
 }
 
+Piece.prototype.chunkLengthRest = function (i) {
+  return this.length - (i * BLOCK_LENGTH)
+}
+
 Piece.prototype.chunkOffset = function (i) {
   return i * BLOCK_LENGTH
 }
@@ -40405,7 +40416,23 @@ Piece.prototype.reserve = function () {
   return -1
 }
 
+Piece.prototype.reserveAll = function () {
+  if (!this.init()) return -1
+  if (this._cancellations.length) return this._cancellations.pop()
+  if (this._reservations < this._chunks) {
+    var min = this._reservations
+    this._reservations = this._chunks
+    return min
+  }
+  return -1
+}
+
 Piece.prototype.cancel = function (i) {
+  if (!this.init()) return
+  this._cancellations.push(i)
+}
+
+Piece.prototype.cancelAll = function (i) {
   if (!this.init()) return
   this._cancellations.push(i)
 }
@@ -40417,19 +40444,28 @@ Piece.prototype.get = function (i) {
 
 Piece.prototype.set = function (i, data, source) {
   if (!this.init()) return false
-  if (!this._buffer[i]) {
-    this._buffered++
-    this._buffer[i] = data
-    this.missing -= data.length
-    if (this.sources.indexOf(source) === -1) {
-      this.sources.push(source)
+  var len = data.length
+  var blocks = Math.ceil(len/BLOCK_LENGTH)
+  for(j = 0; j < blocks; j++) {
+    if (!this._buffer[i+j]) {
+      var offset = j*BLOCK_LENGTH
+      var splitData = data.slice(offset, offset+BLOCK_LENGTH)
+      this._buffered++
+      this._buffer[i+j] = splitData
+      this.missing -= splitData.length
+      if (this.sources.indexOf(source) === -1) {
+        this.sources.push(source)
+      }
     }
   }
+  
   return this._buffered === this._chunks
 }
 
 Piece.prototype.flush = function () {
-  if (!this._buffer || this._chunks !== this._buffered) return null
+  if (!this._buffer || this.missing !== 0) return null
+  //console.debug('trying to concat' + this._buffer.length)
+  //console.debug(this._buffer)
   var buffer = Buffer.concat(this._buffer, this.length)
   this._buffer = null
   this._cancellations = null

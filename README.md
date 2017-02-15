@@ -3,6 +3,8 @@ An extension to the magnet URI scheme for WebTorrent
 
 ## How it works
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/DiegoRBaquero/BMagnet.svg)](https://greenkeeper.io/)
+
 BMagnet is just a magnet uri with an extra parameter 'bm'. If not bm parameter is found, the default will be used (https://bmagnet.btorrent.xyz).
 
 BMagnet uses this 'bm' repository to download a cached version of a parsed-torrent (A torrent will all the metadata) or return the magnet uri if the parsed-torrent is not in cache.

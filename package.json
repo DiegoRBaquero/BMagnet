@@ -7,7 +7,7 @@
     "url": "https://github.com/DiegoRBaquero/BMagnet/issues"
   },
   "devDependencies": {
-    "standard": "14.3.3"
+    "standard": "16.0.3"
   },
   "homepage": "https://github.com/DiegoRBaquero/BMagnet#readme",
   "keywords": [
